@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#b4532a">
+  <title>Recettes Insta</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="top">
+        <h1>Recettes</h1>
+        <details class="menu">
+          <summary aria-label="Menu">⋮</summary>
+          <div class="menu-pop">
+            <label class="as-btn">Importer l'extraction Instagram
+              <input id="file-import" type="file" accept="application/json,.json" hidden>
+            </label>
+            <button type="button" id="btn-help">Comment récupérer mes posts ?</button>
+            <button type="button" id="btn-print-list">Exporter en PDF les recettes affichées</button>
+            <hr>
+            <button type="button" id="btn-export">Sauvegarder (avec mes modifications)</button>
+            <button type="button" id="btn-clear" class="danger-text">Tout effacer</button>
+            <p id="storage-info" class="muted small"></p>
+          </div>
+        </details>
+      </div>
+      <input id="search" type="search" placeholder="Rechercher une recette, un auteur…" autocomplete="off">
+      <nav class="tabs" role="tablist">
+        <button type="button" role="tab" data-view="recettes" class="tab active">Recettes</button>
+        <button type="button" role="tab" data-view="ingredients" class="tab">Ingrédients</button>
+        <span class="spacer"></span>
+        <button type="button" id="btn-fav" class="chip" aria-pressed="false">★ Favoris</button>
+      </nav>
+      <div id="selected" class="chips"></div>
+      <div id="suggest" class="chips scroll"></div>
+    </header>
+
+    <main>
+      <div id="bar" class="bar">
+        <p id="count" class="muted small"></p>
+        <select id="sort" aria-label="Trier">
+          <option value="recent">Récemment enregistrées</option>
+          <option value="az">De A à Z</option>
+          <option value="author">Par auteur</option>
+        </select>
+      </div>
+      <div id="list" class="list"></div>
+      <div id="index" class="index" hidden></div>
+
+      <div id="empty" class="empty" hidden>
+        <p><strong>Aucune recette pour l'instant.</strong></p>
+        <p>Récupère d'abord les posts de ta collection Instagram (sur ordinateur, quelques minutes),
+          puis importe le fichier obtenu ici.</p>
+        <button type="button" class="primary" id="btn-help-empty">Comment faire ?</button>
+      </div>
+      <p id="noresult" class="muted empty" hidden>Aucune recette ne correspond.</p>
+    </main>
+  </div>
+
+  <!-- Fiche recette -->
+  <dialog id="detail" class="sheet">
+    <div class="sheet-head">
+      <button type="button" class="icon-btn" id="d-close" aria-label="Fermer">←</button>
+      <span class="spacer"></span>
+      <button type="button" class="icon-btn" id="d-fav" aria-label="Favori">☆</button>
+    </div>
+    <div class="sheet-body">
+      <div class="d-top">
+        <img id="d-thumb" alt="" hidden>
+        <div>
+          <input id="d-title" class="d-title" aria-label="Titre" autocomplete="off">
+          <p id="d-meta" class="muted small"></p>
+        </div>
+      </div>
+      <div class="d-actions">
+        <a id="d-open" class="btn primary" target="_blank" rel="noopener">Ouvrir dans Instagram</a>
+        <button type="button" class="btn" id="d-print">Exporter en PDF</button>
+      </div>
+      <p id="d-warn" class="warn" hidden></p>
+
+      <h3>Ingrédients indexés</h3>
+      <div id="d-ings" class="chips"></div>
+      <form id="d-add" class="add-ing">
+        <input id="d-add-input" list="all-ings" placeholder="Ajouter un ingrédient…" autocomplete="off" autocapitalize="none">
+        <button type="submit" class="btn">Ajouter</button>
+      </form>
+      <datalist id="all-ings"></datalist>
+
+      <div id="d-lines-wrap">
+        <h3>Liste du post</h3>
+        <ul id="d-lines" class="lines"></ul>
+      </div>
+
+      <h3 class="row">Texte de la fiche
+        <button type="button" class="link-btn" id="d-edit-text">Modifier</button>
+        <button type="button" class="link-btn" id="d-reset-text" hidden>Revenir au texte du post</button>
+      </h3>
+      <div id="d-text" class="d-text"></div>
+      <textarea id="d-text-edit" rows="14" hidden></textarea>
+
+      <h3>Note perso</h3>
+      <textarea id="d-note" rows="2" placeholder="Testée le…, doubler la sauce…"></textarea>
+
+      <label class="check"><input type="checkbox" id="d-hidden"> Ce n'est pas une recette (masquer)</label>
+    </div>
+  </dialog>
+
+  <!-- Aide à l'extraction -->
+  <dialog id="help" class="sheet">
+    <div class="sheet-head">
+      <button type="button" class="icon-btn" id="h-close" aria-label="Fermer">←</button>
+      <strong>Récupérer mes posts Instagram</strong>
+    </div>
+    <div class="sheet-body help">
+      <p>Instagram ne permet pas aux applis de lire tes enregistrements. On passe donc par un petit script
+        que tu lances toi-même, une fois, dans ton navigateur <strong>sur ordinateur</strong>.</p>
+      <ol>
+        <li>Ouvre <a href="https://www.instagram.com/" target="_blank" rel="noopener">instagram.com</a> dans Chrome, Edge ou Firefox,
+          connecte-toi, puis va dans <em>Profil → Enregistrements →</em> ta collection de recettes.</li>
+        <li>Ouvre la console : touche <kbd>F12</kbd> (ou <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>J</kbd>), onglet <em>Console</em>.
+          <br><span class="muted small">Instagram y affiche un gros « Stop! » : c'est un avertissement général contre le code
+          qu'un inconnu te demanderait de coller. Celui-ci est le tien et tu peux le
+          <a href="extraction.js" target="_blank" rel="noopener">lire ici</a> : il ne fait que lire ta collection et télécharger un fichier.</span></li>
+        <li><button type="button" class="btn primary" id="h-copy">Copier le script</button>
+          puis colle-le dans la console et appuie sur <kbd>Entrée</kbd>.
+          <br><span class="muted small">Chrome peut d'abord te demander de taper <code>allow pasting</code> (ou <code>autoriser le collage</code>).</span></li>
+        <li>Un panneau suit la progression (1 à 3 minutes pour 500 posts), puis un fichier
+          <code>recettes-insta-AAAA-MM-JJ.json</code> est téléchargé.</li>
+        <li>Ici : menu <strong>⋮ → Importer l'extraction Instagram</strong>. Pour le téléphone, envoie-toi le fichier
+          (Drive, mail…) et importe-le dans l'appli installée.</li>
+      </ol>
+      <p class="muted small">Nouveaux posts enregistrés ? Relance le script et réimporte : seuls les nouveaux s'ajoutent,
+        tes modifications sont conservées. Tes données restent sur cet appareil ; pense à
+        <em>Sauvegarder</em> de temps en temps.</p>
+    </div>
+  </dialog>
+
+  <div id="print-area"></div>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="ingredients.js"></script>
+  <script src="parser.js"></script>
+  <script src="db.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
