@@ -1,13 +1,13 @@
 :root {
-  --bg: #f7f3ee;
+  --bg: #f4f5f2;
   --card: #ffffff;
-  --ink: #221d19;
-  --muted: #74695f;
-  --line: #e7dfd6;
-  --accent: #b4532a;
+  --ink: #1c2321;
+  --muted: #66706c;
+  --line: #e1e4df;
+  --accent: #128c5e;
   --accent-ink: #ffffff;
-  --chip: #efe7de;
-  --chip-ink: #3b322b;
+  --chip: #e8ece8;
+  --chip-ink: #26302c;
   --warn: #8a5a00;
   --warn-bg: #fff3d6;
   --danger: #b3261e;
@@ -15,15 +15,15 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #161311;
-    --card: #211c19;
-    --ink: #efe8e2;
-    --muted: #a99d93;
-    --line: #342c27;
-    --accent: #e48a5f;
-    --accent-ink: #1d0f08;
-    --chip: #2e2622;
-    --chip-ink: #e6dcd4;
+    --bg: #0f1412;
+    --card: #18201d;
+    --ink: #e6ebe8;
+    --muted: #93a09a;
+    --line: #26302c;
+    --accent: #2fbf86;
+    --accent-ink: #06130d;
+    --chip: #222c28;
+    --chip-ink: #e6ebe8;
     --warn: #ffd27a;
     --warn-bg: #3a2c10;
     --danger: #f2b8b5;
@@ -240,5 +240,10 @@ kbd, code { background: var(--chip); border-radius: 5px; padding: 1px 5px; font-
   .recipe-sheet ul { margin: 0; padding-left: 16pt; columns: 2; column-gap: 18pt; }
   .recipe-sheet li { break-inside: avoid; margin: 1pt 0; }
   .recipe-sheet .txt { white-space: pre-wrap; line-height: 1.5; }
-  .recipe-sheet .note { margin-top: 12pt; padding: 6pt 9pt; border-left: 3px solid #b4532a; font-style: italic; }
+  .recipe-sheet .note { margin-top: 12pt; padding: 6pt 9pt; border-left: 3px solid #128c5e; font-style: italic; }
 }
+
+/* Favori à glisser */
+.bookmarklet { margin: 8px 0 4px; cursor: grab; }
+.help details { margin-top: 18px; }
+.help summary { cursor: pointer; color: var(--muted); }

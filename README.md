@@ -10,13 +10,14 @@ En ligne : https://noliramlis.github.io/recettes-insta/
 
 ## 1. Récupérer les posts (sur ordinateur, une fois)
 
-Instagram n'offre pas d'accès aux enregistrements pour les applis. Le fichier [`extraction.js`](extraction.js)
-se lance à la main dans la console du navigateur, sur instagram.com, connecté à ton compte :
+Instagram n'offre pas d'accès aux enregistrements pour les applis. L'extraction passe par un
+« favori-bouton » (bookmarklet) qui contient le script [`extraction.js`](extraction.js) :
 
-1. Ouvre ta collection : *Profil → Enregistrements →* ta collection.
-2. `F12` → onglet *Console* → colle le script (bouton *Copier le script* dans l'aide de l'appli) → `Entrée`.
-3. Il lit la collection page par page (avec des pauses), puis télécharge `recettes-insta-AAAA-MM-JJ.json`
-   (lien, auteur, texte et miniature de chaque post).
+1. Dans l'aide de l'appli (*Comment récupérer mes posts ?*), fais glisser le bouton **📥 Recettes Insta**
+   dans la barre de favoris (une seule fois ; `Ctrl+Maj+B` pour l'afficher).
+2. Sur instagram.com, connecté, ouvre ta collection : *Profil → Enregistrements →* ta collection.
+3. Clique sur le favori : il lit la collection page par page (avec des pauses), puis télécharge
+   `recettes-insta-AAAA-MM-JJ.json` (lien, auteur, texte et miniature de chaque post).
 4. Dans l'appli : menu ⋮ → *Importer l'extraction Instagram*.
 
 Relancer plus tard n'ajoute que les nouveaux posts ; tes corrections sont conservées.

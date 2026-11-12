@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#b4532a">
+  <meta name="theme-color" content="#128c5e">
   <title>Recettes Insta</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
@@ -117,24 +117,32 @@
       <strong>Récupérer mes posts Instagram</strong>
     </div>
     <div class="sheet-body help">
-      <p>Instagram ne permet pas aux applis de lire tes enregistrements. On passe donc par un petit script
-        que tu lances toi-même, une fois, dans ton navigateur <strong>sur ordinateur</strong>.</p>
+      <p>Instagram ne permet pas aux applis de lire tes enregistrements. On passe par un bouton à mettre
+        dans tes favoris, <strong>sur ordinateur</strong> (Chrome, Edge ou Firefox), une fois pour toutes.</p>
       <ol>
-        <li>Ouvre <a href="https://www.instagram.com/" target="_blank" rel="noopener">instagram.com</a> dans Chrome, Edge ou Firefox,
-          connecte-toi, puis va dans <em>Profil → Enregistrements →</em> ta collection de recettes.</li>
-        <li>Ouvre la console : touche <kbd>F12</kbd> (ou <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>J</kbd>), onglet <em>Console</em>.
-          <br><span class="muted small">Instagram y affiche un gros « Stop! » : c'est un avertissement général contre le code
-          qu'un inconnu te demanderait de coller. Celui-ci est le tien et tu peux le
-          <a href="extraction.js" target="_blank" rel="noopener">lire ici</a> : il ne fait que lire ta collection et télécharger un fichier.</span></li>
-        <li><button type="button" class="btn primary" id="h-copy">Copier le script</button>
-          puis colle-le dans la console et appuie sur <kbd>Entrée</kbd>.
-          <br><span class="muted small">Chrome peut d'abord te demander de taper <code>allow pasting</code> (ou <code>autoriser le collage</code>).</span></li>
-        <li>Un panneau suit la progression (1 à 3 minutes pour 500 posts), puis un fichier
-          <code>recettes-insta-AAAA-MM-JJ.json</code> est téléchargé.</li>
+        <li><strong>Une seule fois :</strong> fais glisser ce bouton dans ta barre de favoris
+          <a id="h-bookmarklet" class="btn primary bookmarklet" href="#" draggable="true">📥 Recettes Insta</a>
+          <br><span class="muted small">Pas de barre de favoris ? Affiche-la avec <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>B</kbd>.
+          Dans l'appli installée, ouvre plutôt cette page dans le navigateur.</span></li>
+        <li>Ouvre <a href="https://www.instagram.com/" target="_blank" rel="noopener">instagram.com</a>, connecte-toi,
+          puis va dans <em>Profil → Enregistrements →</em> ta collection de recettes.</li>
+        <li>Clique sur le favori <strong>📥 Recettes Insta</strong>. Un panneau suit la progression (1 à 3 minutes pour
+          500 posts), puis un fichier <code>recettes-insta-AAAA-MM-JJ.json</code> est téléchargé.</li>
         <li>Ici : menu <strong>⋮ → Importer l'extraction Instagram</strong>. Pour le téléphone, envoie-toi le fichier
           (Drive, mail…) et importe-le dans l'appli installée.</li>
       </ol>
-      <p class="muted small">Nouveaux posts enregistrés ? Relance le script et réimporte : seuls les nouveaux s'ajoutent,
+      <p class="muted small">Le favori ne fait que lire ta collection et télécharger un fichier :
+        <a href="extraction.js" target="_blank" rel="noopener">voir son code</a>.</p>
+      <details class="small">
+        <summary>Le favori ne fait rien ? Méthode de secours (console)</summary>
+        <ol>
+          <li>Sur la page de ta collection Instagram, ouvre la console : <kbd>F12</kbd>, onglet <em>Console</em>
+            (Instagram y affiche un avertissement « Stop! », c'est normal).</li>
+          <li><button type="button" class="btn" id="h-copy">Copier le script</button>, colle-le dans la console,
+            puis <kbd>Entrée</kbd>. Chrome peut d'abord demander de taper <code>allow pasting</code>.</li>
+        </ol>
+      </details>
+      <p class="muted small">Nouveaux posts enregistrés ? Reclique sur le favori et réimporte : seuls les nouveaux s'ajoutent,
         tes modifications sont conservées. Tes données restent sur cet appareil ; pense à
         <em>Sauvegarder</em> de temps en temps.</p>
     </div>

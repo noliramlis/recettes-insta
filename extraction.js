@@ -1,8 +1,8 @@
 // Recettes Insta — extraction d'une collection d'enregistrements Instagram.
 //
-// À coller dans la console du navigateur (F12 → Console) sur www.instagram.com,
-// connecté à ton compte, de préférence depuis la page de ta collection
-// (Profil → Enregistrements → ta collection). Le script lit, au rythme d'un
+// Se lance depuis le favori « 📥 Recettes Insta » (ou collé dans la console F12)
+// sur www.instagram.com, connecté à ton compte, de préférence depuis la page de
+// ta collection (Profil → Enregistrements → ta collection). Le script lit, au rythme d'un
 // humain pressé, les posts de la collection (lien, auteur, texte, miniature)
 // et télécharge un fichier JSON à importer dans l'appli Recettes Insta.
 // Il ne modifie rien sur ton compte et n'envoie rien ailleurs qu'à ton navigateur.
@@ -14,7 +14,7 @@
   const cookie = (n) => decodeURIComponent((document.cookie.match('(?:^|; )' + n + '=([^;]*)') || [])[1] || '');
 
   if (!/(^|\.)instagram\.com$/.test(location.hostname)) {
-    alert('Ouvre d\'abord www.instagram.com (connecté), puis recolle le script.');
+    alert('À utiliser sur www.instagram.com : ouvre ta collection de recettes (connecté), puis clique sur le favori.');
     return;
   }
 
@@ -179,7 +179,7 @@
   stopBtn.remove();
   say(`✅ ${posts.length} posts enregistrés dans le fichier téléchargé. ` +
     'Importe-le dans Recettes Insta (menu ⋮ → Importer l\'extraction). ' +
-    'Pas de fichier ? Tape __recettesInsta.download() dans la console.');
+    'Pas de fichier ? Vérifie que le navigateur autorise les téléchargements, puis recommence.');
   const close = document.createElement('button');
   close.textContent = 'Fermer';
   close.style.cssText = stopBtn.style.cssText;

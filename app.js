@@ -456,6 +456,17 @@ const openHelp = () => { $('.menu').open = false; help.showModal(); };
 $('#btn-help').addEventListener('click', openHelp);
 $('#btn-help-empty').addEventListener('click', openHelp);
 $('#h-close').addEventListener('click', () => help.close());
+// Le favori (« bookmarklet ») contient tout le script d'extraction.
+async function prepareBookmarklet() {
+  try {
+    const code = await (await fetch('extraction.js', { cache: 'no-cache' })).text();
+    $('#h-bookmarklet').href = 'javascript:' + encodeURIComponent(code + '\nvoid 0;');
+  } catch {}
+}
+$('#h-bookmarklet').addEventListener('click', (e) => {
+  e.preventDefault();
+  toast('Ne clique pas ici : fais glisser le bouton dans ta barre de favoris');
+});
 $('#h-copy').addEventListener('click', async () => {
   try {
     const code = await (await fetch('extraction.js', { cache: 'no-cache' })).text();
@@ -493,6 +504,7 @@ async function init() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
   await load();
   fillDatalist();
+  prepareBookmarklet();
 }
 
 init();
