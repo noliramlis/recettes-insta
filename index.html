@@ -21,7 +21,9 @@
               <input id="file-import" type="file" accept="application/json,.json" hidden>
             </label>
             <button type="button" id="btn-help">Comment récupérer mes posts ?</button>
+            <button type="button" id="btn-print-sel" hidden>Exporter en PDF la sélection</button>
             <button type="button" id="btn-print-list">Exporter en PDF les recettes affichées</button>
+            <p class="muted small">Astuce : appui long sur une recette pour en sélectionner plusieurs.</p>
             <hr>
             <button type="button" id="btn-export">Sauvegarder (avec mes modifications)</button>
             <button type="button" id="btn-clear" class="danger-text">Tout effacer</button>
@@ -147,6 +149,15 @@
         <em>Sauvegarder</em> de temps en temps.</p>
     </div>
   </dialog>
+
+  <!-- Barre contextuelle de sélection -->
+  <div id="selbar" class="selbar" role="toolbar" aria-label="Sélection" hidden>
+    <button type="button" class="icon-btn" id="sel-cancel" aria-label="Annuler la sélection">✕</button>
+    <span id="sel-count"></span>
+    <span class="spacer"></span>
+    <button type="button" class="btn" id="sel-all">Tout</button>
+    <button type="button" class="btn primary" id="sel-print">Exporter la sélection</button>
+  </div>
 
   <div id="print-area"></div>
   <div id="toast" class="toast" role="status" hidden></div>

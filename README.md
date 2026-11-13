@@ -32,7 +32,10 @@ quelque chose et il faudra l'adapter.
 - **Fiche** : ouvrir le post dans Instagram, exporter en PDF (via l'impression → *Enregistrer en PDF*),
   corriger le titre, ajouter/retirer des ingrédients, modifier le texte de la fiche, note perso, favori,
   masquer ce qui n'est pas une recette.
-- Menu ⋮ → *Exporter en PDF les recettes affichées* : un PDF avec une recette par page.
+- **Sélection** : appui long sur une recette (Ctrl+clic sur ordinateur), puis appuis courts pour en cocher
+  d'autres ; la barre du bas propose *Tout* et *Exporter la sélection* (un PDF, une recette par page).
+  *Retour* ou ✕ quitte la sélection.
+- Menu ⋮ → *Exporter en PDF les recettes affichées* : toute la liste filtrée en un PDF.
 - Menu ⋮ → *Sauvegarder* : fichier JSON avec tes modifications (réimportable sur un autre appareil).
 
 ## Structure

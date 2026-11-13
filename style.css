@@ -247,3 +247,27 @@ kbd, code { background: var(--chip); border-radius: 5px; padding: 1px 5px; font-
 .bookmarklet { margin: 8px 0 4px; cursor: grab; }
 .help details { margin-top: 18px; }
 .help summary { cursor: pointer; color: var(--muted); }
+
+/* Sélection multiple (appui long) */
+.card { position: relative; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.card .tick {
+  position: absolute; top: 4px; left: 4px; z-index: 1;
+  width: 24px; height: 24px; border-radius: 50%;
+  display: none; place-items: center;
+  background: var(--card); border: 2px solid var(--muted);
+  font-size: 13px; font-weight: 800; line-height: 1;
+}
+body.selecting .card .tick { display: grid; }
+.card.picked { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, var(--card)); }
+.card.picked .tick { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.selbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: var(--card); border-top: 1px solid var(--line);
+  box-shadow: 0 -4px 18px rgba(0,0,0,.12);
+  font-weight: 600;
+}
+body.selecting { padding-bottom: 90px; }
+body.selecting .toast { bottom: calc(80px + env(safe-area-inset-bottom)); }

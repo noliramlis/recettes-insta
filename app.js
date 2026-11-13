@@ -4,7 +4,11 @@ const $ = (s) => document.querySelector(s);
 const { parse, fold, matchIngredients, categoryOf, categories, catalog } = window.RecipeParser;
 
 let recipes = []; // { raw, p, title, ings, ingSet, hay }
-const state = { q: '', view: 'recettes', selected: new Set(), fav: false, showHidden: false, sort: 'recent' };
+const state = {
+  q: '', view: 'recettes', selected: new Set(), fav: false, showHidden: false, sort: 'recent',
+  picked: new Set(), // recettes cochées (appui long) pour l'export PDF
+};
+let shownList = []; // recettes affichées dans la liste
 let current = null; // fiche ouverte
 
 /* ---------- Utilitaires ---------- */
@@ -154,6 +158,15 @@ function render() {
 
   if (inIndex) renderIndex(base, counts, q);
   else $('#list').replaceChildren(...list.map(card));
+  shownList = list;
+
+  // Barre de sélection
+  const n = state.picked.size;
+  document.body.classList.toggle('selecting', n > 0);
+  $('#selbar').hidden = !n;
+  $('#sel-count').textContent = plural(n, 'sélectionnée', 'sélectionnées');
+  $('#btn-print-sel').hidden = !n;
+  $('#btn-print-sel').textContent = `Exporter en PDF la sélection (${n})`;
 
   const hiddenCount = recipes.filter((r) => r.raw.hidden).length;
   const shown = inIndex ? base.length : list.length;
@@ -176,8 +189,11 @@ function card(r) {
   const others = r.ings.filter((i) => !state.selected.has(i));
   const parts = [...sel.map((i) => el('b', {}, i)), ...others];
   const ings = parts.flatMap((x, k) => (k ? [' · ', x] : [x]));
-  return el('button', { type: 'button', class: 'card', onclick: () => openDetail(r) },
-    r.raw.thumb ? el('img', { src: r.raw.thumb, class: 'thumb', alt: '', loading: 'lazy' }) : el('div', { class: 'thumb' }, '🍽️'),
+  const picked = state.picked.has(r.raw.code);
+  return el('button', { type: 'button', class: 'card' + (picked ? ' picked' : ''), 'data-code': r.raw.code,
+    'aria-pressed': state.picked.size ? String(picked) : null },
+    el('span', { class: 'tick', 'aria-hidden': 'true' }, picked ? '✓' : ''),
+    r.raw.thumb ? el('img', { src: r.raw.thumb, class: 'thumb', alt: '', loading: 'lazy', draggable: 'false' }) : el('div', { class: 'thumb' }, '🍽️'),
     el('div', { class: 'card-body' },
       el('div', { class: 'card-title' }, r.raw.fav ? '★ ' : '', r.title),
       el('div', { class: 'card-meta' }, '@' + r.raw.author,
@@ -217,6 +233,72 @@ function renderIndex(base, counts, q) {
   else if (sections.length === (state.selected.size ? 1 : 0)) sections.push(el('p', { class: 'muted empty' }, 'Aucun ingrédient ne correspond.'));
   $('#index').replaceChildren(...sections);
 }
+
+/* ---------- Sélection (appui long) ---------- */
+
+const LONG_PRESS_MS = 480;
+let press = null;
+let swallowClick = false; // le clic qui suit un appui long ne doit pas ouvrir la fiche
+
+function togglePick(code) {
+  if (!state.picked.size) history.pushState({ selecting: true }, ''); // « retour » quitte la sélection
+  if (state.picked.has(code)) state.picked.delete(code); else state.picked.add(code);
+  if (!state.picked.size) { clearPicked(); return; }
+  render();
+}
+
+function clearPicked(fromHistory = false) {
+  state.picked.clear();
+  if (!fromHistory && history.state?.selecting) history.back();
+  render();
+}
+
+const listEl = $('#list');
+const cancelPress = () => { if (press) { clearTimeout(press.timer); press = null; } };
+listEl.addEventListener('pointerdown', (e) => {
+  swallowClick = false;
+  const c = e.target.closest('.card');
+  if (!c || e.button > 0) return;
+  press = {
+    x: e.clientX, y: e.clientY,
+    timer: setTimeout(() => {
+      press = null;
+      swallowClick = true;
+      navigator.vibrate?.(15);
+      togglePick(c.dataset.code);
+    }, LONG_PRESS_MS),
+  };
+});
+listEl.addEventListener('pointermove', (e) => {
+  if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) cancelPress();
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => listEl.addEventListener(t, cancelPress));
+window.addEventListener('scroll', cancelPress, { passive: true });
+listEl.addEventListener('contextmenu', (e) => { if (e.target.closest('.card')) e.preventDefault(); });
+listEl.addEventListener('click', (e) => {
+  const c = e.target.closest('.card');
+  if (!c) return;
+  if (swallowClick) { swallowClick = false; return; }
+  if (state.picked.size || e.ctrlKey || e.metaKey) { togglePick(c.dataset.code); return; }
+  const r = recipes.find((x) => x.raw.code === c.dataset.code);
+  if (r) openDetail(r);
+});
+window.addEventListener('popstate', () => { if (state.picked.size) clearPicked(true); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.picked.size && !document.querySelector('dialog[open]')) clearPicked();
+});
+
+function printPicked() {
+  const list = sortList(recipes.filter((r) => state.picked.has(r.raw.code)));
+  printRecipes(list, list.length === 1 ? list[0].title : `Recettes (${list.length})`);
+}
+$('#sel-cancel').addEventListener('click', () => clearPicked());
+$('#sel-all').addEventListener('click', () => {
+  shownList.forEach((r) => state.picked.add(r.raw.code));
+  render();
+});
+$('#sel-print').addEventListener('click', printPicked);
+$('#btn-print-sel').addEventListener('click', () => { $('.menu').open = false; printPicked(); });
 
 /* ---------- Fiche recette ---------- */
 
@@ -445,6 +527,7 @@ $('#btn-clear').addEventListener('click', async () => {
   if (!recipes.length || !confirm(`Effacer les ${recipes.length} recettes de cet appareil ? (pense à sauvegarder avant)`)) return;
   await dbClear();
   state.selected.clear();
+  state.picked.clear();
   await load();
   toast('Tout est effacé');
 });
