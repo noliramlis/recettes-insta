@@ -5,10 +5,14 @@
 // ta collection (Profil → Enregistrements → ta collection). Le script lit, au rythme d'un
 // humain pressé, les posts de la collection (lien, auteur, texte, miniature)
 // et télécharge un fichier JSON à importer dans l'appli Recettes Insta.
+// Sur la page d'un seul post (…/p/CODE/ ou …/reel/CODE/), il lit ce post et
+// le renvoie directement à l'appli (sans fichier).
 // Il ne modifie rien sur ton compte et n'envoie rien ailleurs qu'à ton navigateur.
 (async () => {
   'use strict';
   const APP_ID = '936619743392459'; // identifiant public du site web Instagram
+  // Adresse de l'appli : insérée par l'appli quand elle prépare le favori.
+  const APP_URL = /^https?:/.test('__APP_URL__') ? '__APP_URL__' : 'https://noliramlis.github.io/recettes-insta/';
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const wait = (a, b) => sleep(a + Math.random() * (b - a));
   const cookie = (n) => decodeURIComponent((document.cookie.match('(?:^|; )' + n + '=([^;]*)') || [])[1] || '');
@@ -123,6 +127,36 @@
     document.body.append(a);
     a.click();
     a.remove();
+  }
+
+  // Code court d'un post (ex. « DfAfqWENNor ») → identifiant numérique du média.
+  function mediaId(code) {
+    const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    let id = 0n;
+    for (const c of code.slice(0, 11)) id = id * 64n + BigInt(A.indexOf(c));
+    return id.toString();
+  }
+
+  /* ---------- Mode « un seul post » : renvoi direct vers l'appli ---------- */
+  const single = location.pathname.match(/\/(?:p|reels?|tv)\/([\w-]+)/);
+  if (single) {
+    stopBtn.remove();
+    try {
+      say('Lecture du post…');
+      const data = await api(`media/${mediaId(single[1])}/info/`);
+      const m = data.items && data.items[0];
+      if (!m) throw new Error('Post introuvable.');
+      const p = pick(m, 0);
+      p.thumb = await thumb(p.thumbSrc);
+      delete p.thumbSrc;
+      if (!p.thumb) delete p.thumb;
+      say('✅ Envoi vers Recettes Insta…');
+      location.href = APP_URL + '#import=' + encodeURIComponent(JSON.stringify(p));
+    } catch (err) {
+      say('⚠️ ' + err.message + ' (es-tu connecté à Instagram dans ce navigateur ?)');
+      console.error(err);
+    }
+    return;
   }
 
   const posts = [];

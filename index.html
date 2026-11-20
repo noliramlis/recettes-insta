@@ -84,12 +84,19 @@
         <button type="button" class="btn" id="d-print">Exporter en PDF</button>
       </div>
       <p id="d-warn" class="warn" hidden></p>
-      <div id="d-paste" hidden>
-        <textarea id="d-paste-text" rows="6" placeholder="Colle ici le texte du post…"></textarea>
-        <div class="d-actions">
-          <button type="button" class="btn" id="d-paste-clip">Coller</button>
-          <button type="button" class="btn primary" id="d-paste-save">Analyser ce texte</button>
-        </div>
+      <div id="d-paste" class="complete" hidden>
+        <a id="d-complete" class="btn primary" target="_blank" rel="noopener">Compléter automatiquement</a>
+        <p class="muted small">Le post s'ouvre dans Chrome : touche la barre d'adresse, tape <strong>Recettes</strong>
+          et choisis le favori <strong>📥 Recettes Insta</strong>. Le texte revient ici tout seul.
+          <button type="button" class="link-btn" id="d-bm-help">Pas encore de favori sur le téléphone ?</button></p>
+        <details>
+          <summary class="muted small">ou coller le texte à la main</summary>
+          <textarea id="d-paste-text" rows="6" placeholder="Colle ici le texte du post…"></textarea>
+          <div class="d-actions">
+            <button type="button" class="btn" id="d-paste-clip">Coller</button>
+            <button type="button" class="btn" id="d-paste-save">Analyser ce texte</button>
+          </div>
+        </details>
       </div>
 
       <h3>Ingrédients indexés</h3>
@@ -140,7 +147,18 @@
         <li>Ici : menu <strong>⋮ → Importer l'extraction Instagram</strong>. Pour le téléphone, envoie-toi le fichier
           (Drive, mail…) et importe-le dans l'appli installée.</li>
       </ol>
-      <p class="muted small">Le favori ne fait que lire ta collection et télécharger un fichier :
+      <h3 id="h-phone">Sur le téléphone (compléter un post partagé)</h3>
+      <p class="small">Le même favori sert aussi sur le téléphone, sur la page d'un seul post : il renvoie son texte
+        directement dans l'appli. Pour l'y avoir :</p>
+      <ul class="small">
+        <li><strong>Chrome connecté à ton compte Google sur le PC et le téléphone :</strong> le favori glissé sur le PC
+          arrive tout seul sur le téléphone. (Si tu l'avais déjà, remplace-le par celui de cette page : il a été amélioré.)</li>
+        <li><strong>Sinon :</strong> <button type="button" class="btn" id="h-copy-bm">Copier le favori</button>
+          puis, dans Chrome sur le téléphone : ⋮ → ☆ (ajoute la page en favori), ⋮ → <em>Favoris</em> → ce favori
+          → ✏️ : nom <strong>Recettes Insta</strong>, et colle dans <em>URL</em>.</li>
+        <li>Il faut aussi être connecté à instagram.com dans Chrome sur le téléphone (une fois).</li>
+      </ul>
+      <p class="muted small">Le favori ne fait que lire ta collection (ou le post affiché) et transmettre le texte à l'appli :
         <a href="extraction.js" target="_blank" rel="noopener">voir son code</a>.</p>
       <details class="small">
         <summary>Le favori ne fait rien ? Méthode de secours (console)</summary>

@@ -330,9 +330,7 @@ function refreshDetail() {
   const { raw, p } = r;
   const pending = !raw.caption;
   const warn = pending
-    ? "Ajoutée depuis un partage : Instagram ne transmet que le lien, pas le texte. Pour indexer la recette, " +
-      "colle ci-dessous le texte du post (sur instagram.com dans le navigateur, il se sélectionne et se copie), " +
-      "ou enregistre aussi le post dans ta collection : la prochaine extraction le complétera."
+    ? "Ajoutée depuis un partage : Instagram n'envoie que le lien, pas le texte. Complète-la pour indexer ses ingrédients."
     : !p.hasRecipe
       ? "Le texte de ce post ne contient pas vraiment de recette : elle est sans doute dans les images, la vidéo ou un commentaire. Ouvre le post dans Instagram."
       : p.source === 'texte' ? "Pas de liste d'ingrédients trouvée : ceux ci-dessous sont devinés à partir de tout le texte, vérifie-les."
@@ -340,6 +338,15 @@ function refreshDetail() {
   $('#d-warn').textContent = warn;
   $('#d-warn').hidden = !warn;
   $('#d-paste').hidden = !pending;
+  if (pending && raw.url) {
+    // Sur Android, forcer Chrome : un lien instagram.com ouvrirait l'appli Instagram.
+    const u = new URL(raw.url);
+    $('#d-complete').href = /Android/i.test(navigator.userAgent)
+      ? `intent://${u.host}${u.pathname}#Intent;scheme=https;package=com.android.chrome;end`
+      : raw.url;
+  }
+  $('#d-complete').hidden = !raw.url;
+  $('#d-open').classList.toggle('primary', !pending);
   $('#d-lines-wrap').hidden = !p.ingredientLines.length;
   $('#d-lines').replaceChildren(...p.ingredientLines.map((l) => el('li', {}, l)));
   $('#d-fav').textContent = r.raw.fav ? '★' : '☆';
@@ -420,6 +427,10 @@ $('#d-paste-save').addEventListener('click', async () => {
   $('#d-title').value = current.title;
   toast(plural(current.ings.length, 'ingrédient reconnu', 'ingrédients reconnus'));
 });
+$('#d-bm-help').addEventListener('click', () => {
+  help.showModal();
+  $('#h-phone').scrollIntoView();
+});
 $('#d-close').addEventListener('click', () => detail.close());
 $('#d-print').addEventListener('click', () => printRecipes([current], current.title));
 detail.addEventListener('close', () => {
@@ -492,17 +503,7 @@ async function importFile(file) {
   } else {
     for (const [k, p] of (data.posts || []).entries()) {
       if (!p.code) continue;
-      const fresh = {
-        code: p.code,
-        url: p.url || `https://www.instagram.com/p/${p.code}/`,
-        author: p.author || '',
-        authorName: p.authorName || '',
-        caption: p.caption || '',
-        takenAt: p.takenAt || null,
-        mediaType: p.mediaType || '',
-        collection: data.collection?.name || '',
-      };
-      if (p.thumb) fresh.thumb = p.thumb;
+      const fresh = freshFromPost(p, data.collection?.name);
       const old = byCode.get(p.code);
       if (old) { const m = { ...old, ...fresh }; delete m.pending; out.push(m); updated++; } else {
         out.push({ ...fresh, savedAt: now - (p.savedIndex ?? k) }); added++;
@@ -559,12 +560,22 @@ $('#btn-help').addEventListener('click', openHelp);
 $('#btn-help-empty').addEventListener('click', openHelp);
 $('#h-close').addEventListener('click', () => help.close());
 // Le favori (« bookmarklet ») contient tout le script d'extraction.
+let bookmarkletUrl = '';
 async function prepareBookmarklet() {
   try {
-    const code = await (await fetch('extraction.js', { cache: 'no-cache' })).text();
-    $('#h-bookmarklet').href = 'javascript:' + encodeURIComponent(code + '\nvoid 0;');
+    const code = (await (await fetch('extraction.js', { cache: 'no-cache' })).text())
+      .replaceAll('__APP_URL__', new URL('./', location.href).href);
+    bookmarkletUrl = 'javascript:' + encodeURIComponent(code + '\nvoid 0;');
+    $('#h-bookmarklet').href = bookmarkletUrl;
   } catch {}
 }
+$('#h-copy-bm').addEventListener('click', async () => {
+  try {
+    if (!bookmarkletUrl) await prepareBookmarklet();
+    await navigator.clipboard.writeText(bookmarkletUrl);
+    toast('Favori copié : colle-le comme adresse du favori');
+  } catch { toast('Copie impossible'); }
+});
 $('#h-bookmarklet').addEventListener('click', (e) => {
   e.preventDefault();
   toast('Ne clique pas ici : fais glisser le bouton dans ta barre de favoris');
@@ -647,6 +658,44 @@ async function init() {
     history.replaceState(null, '', location.pathname);
     await receiveShare(params);
   }
+  checkHashImport();
 }
+
+/* ---------- Post renvoyé par le favori (…/#import=…) ---------- */
+
+function freshFromPost(p, collection = '') {
+  const fresh = {
+    code: p.code,
+    url: p.url || `https://www.instagram.com/p/${p.code}/`,
+    author: p.author || '',
+    authorName: p.authorName || '',
+    caption: p.caption || '',
+    takenAt: p.takenAt || null,
+    mediaType: p.mediaType || '',
+  };
+  if (collection) fresh.collection = collection;
+  if (p.thumb) fresh.thumb = p.thumb;
+  return fresh;
+}
+
+async function checkHashImport() {
+  const m = location.hash.match(/^#import=(.+)$/s);
+  if (!m) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  let p;
+  try { p = JSON.parse(decodeURIComponent(m[1])); } catch { toast('Données du post illisibles'); return; }
+  if (!p || !p.code) { toast('Données du post illisibles'); return; }
+  const old = recipes.find((r) => r.raw.code === p.code)?.raw;
+  const raw = old ? { ...old, ...freshFromPost(p) } : { ...freshFromPost(p), savedAt: Date.now(), shared: true };
+  delete raw.pending;
+  if (detail.open) detail.close();
+  const r = await commit(raw);
+  navigator.storage?.persist?.();
+  render();
+  updateStorageInfo();
+  toast(`${old ? 'Recette complétée' : 'Recette ajoutée'} : ${plural(r.ings.length, 'ingrédient reconnu', 'ingrédients reconnus')}`);
+  openDetail(r);
+}
+window.addEventListener('hashchange', checkHashImport);
 
 init();

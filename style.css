@@ -271,3 +271,11 @@ body.selecting .card .tick { display: grid; }
 }
 body.selecting { padding-bottom: 90px; }
 body.selecting .toast { bottom: calc(80px + env(safe-area-inset-bottom)); }
+
+/* Fiche « à compléter » */
+.complete { margin-top: 10px; }
+.complete details { margin-top: 6px; }
+.complete details textarea { margin-top: 8px; }
+.help h3 { margin-top: 26px; }
+.help ul { padding-left: 20px; }
+.help ul li { margin-bottom: 8px; }

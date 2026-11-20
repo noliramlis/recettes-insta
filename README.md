@@ -27,9 +27,11 @@ quelque chose et il faudra l'adapter.
 ## 2. Utilisation
 
 - **Partager depuis Instagram** (appli installée sur Android) : *Partager → Recettes* ajoute le post.
-  Instagram ne transmet que le lien : la recette arrive « à compléter ». Colle son texte dans la fiche,
-  ou enregistre aussi le post dans ta collection : la prochaine extraction la complète.
-
+  Instagram ne transmet que le lien : la recette arrive « à compléter ». Dans sa fiche,
+  *Compléter automatiquement* ouvre le post dans Chrome ; tape « Recettes » dans la barre d'adresse et
+  choisis le favori 📥 : le texte, l'auteur et la miniature reviennent dans l'appli. (Le favori arrive sur le
+  téléphone par la synchro Chrome, ou via *Copier le favori* dans l'aide ; il faut être connecté à
+  instagram.com dans Chrome.) Le copier-coller du texte reste possible.
 - **Recettes** : recherche plein texte ; en tapant un ingrédient, une suggestion permet de filtrer dessus.
 - **Ingrédients** : index par catégorie avec le nombre de recettes ; en choisir plusieurs affine
   (les nombres se mettent à jour selon la sélection).
