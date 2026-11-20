@@ -56,7 +56,7 @@ function compute(raw) {
   const p = parse(raw.caption, raw.author);
   const removed = new Set(raw.ingRemoved || []);
   const ings = [...new Set([...p.ingredients.filter((i) => !removed.has(i)), ...(raw.ingAdded || [])])];
-  const title = raw.title || p.title;
+  const title = raw.title || (!raw.caption && !raw.author ? 'Post partagé (à compléter)' : p.title);
   return {
     raw, p, title, ings,
     ingSet: new Set(ings),
@@ -196,8 +196,8 @@ function card(r) {
     r.raw.thumb ? el('img', { src: r.raw.thumb, class: 'thumb', alt: '', loading: 'lazy', draggable: 'false' }) : el('div', { class: 'thumb' }, '🍽️'),
     el('div', { class: 'card-body' },
       el('div', { class: 'card-title' }, r.raw.fav ? '★ ' : '', r.title),
-      el('div', { class: 'card-meta' }, '@' + r.raw.author,
-        r.p.hasRecipe ? '' : ' · recette absente du texte',
+      el('div', { class: 'card-meta' }, r.raw.author ? '@' + r.raw.author : 'partage',
+        !r.raw.caption ? ' · à compléter' : r.p.hasRecipe ? '' : ' · recette absente du texte',
         r.raw.hidden ? ' · masquée' : ''),
       ings.length ? el('div', { class: 'card-ings' }, ings) : null));
 }
@@ -310,21 +310,13 @@ function openDetail(r) {
   $('#d-thumb').hidden = !raw.thumb;
   if (raw.thumb) $('#d-thumb').src = raw.thumb;
   $('#d-title').value = r.title;
-  $('#d-meta').textContent = ['@' + raw.author, raw.mediaType, raw.takenAt ? 'publié le ' + dateFmt.format(raw.takenAt) : '']
+  $('#d-meta').textContent = [raw.author ? '@' + raw.author : '', raw.mediaType, raw.takenAt ? 'publié le ' + dateFmt.format(raw.takenAt) : '']
     .filter(Boolean).join(' · ');
-  $('#d-open').href = raw.url;
+  $('#d-open').href = raw.url || '#';
+  $('#d-open').hidden = !raw.url;
+  $('#d-paste-text').value = '';
   $('#d-note').value = raw.note || '';
   $('#d-hidden').checked = !!raw.hidden;
-
-  const warn = !p.hasRecipe
-    ? "Le texte de ce post ne contient pas vraiment de recette : elle est sans doute dans les images, la vidéo ou un commentaire. Ouvre le post dans Instagram."
-    : p.source === 'texte' ? "Pas de liste d'ingrédients trouvée : ceux ci-dessous sont devinés à partir de tout le texte, vérifie-les."
-      : '';
-  $('#d-warn').textContent = warn;
-  $('#d-warn').hidden = !warn;
-
-  $('#d-lines-wrap').hidden = !p.ingredientLines.length;
-  $('#d-lines').replaceChildren(...p.ingredientLines.map((l) => el('li', {}, l)));
 
   showText(false);
   refreshDetail();
@@ -335,6 +327,21 @@ function openDetail(r) {
 
 function refreshDetail() {
   const r = current;
+  const { raw, p } = r;
+  const pending = !raw.caption;
+  const warn = pending
+    ? "Ajoutée depuis un partage : Instagram ne transmet que le lien, pas le texte. Pour indexer la recette, " +
+      "colle ci-dessous le texte du post (sur instagram.com dans le navigateur, il se sélectionne et se copie), " +
+      "ou enregistre aussi le post dans ta collection : la prochaine extraction le complétera."
+    : !p.hasRecipe
+      ? "Le texte de ce post ne contient pas vraiment de recette : elle est sans doute dans les images, la vidéo ou un commentaire. Ouvre le post dans Instagram."
+      : p.source === 'texte' ? "Pas de liste d'ingrédients trouvée : ceux ci-dessous sont devinés à partir de tout le texte, vérifie-les."
+        : '';
+  $('#d-warn').textContent = warn;
+  $('#d-warn').hidden = !warn;
+  $('#d-paste').hidden = !pending;
+  $('#d-lines-wrap').hidden = !p.ingredientLines.length;
+  $('#d-lines').replaceChildren(...p.ingredientLines.map((l) => el('li', {}, l)));
   $('#d-fav').textContent = r.raw.fav ? '★' : '☆';
   $('#d-ings').replaceChildren(...r.ings.map((i) =>
     chip([i, el('span', { class: 'x', 'aria-label': 'retirer' }, '✕')], { onClick: () => removeIng(i) })));
@@ -401,6 +408,18 @@ $('#d-reset-text').addEventListener('click', () => {
   update({ text: null });
   showText(false);
 });
+$('#d-paste-clip').addEventListener('click', async () => {
+  try { $('#d-paste-text').value = await navigator.clipboard.readText(); } catch {
+    toast('Accès au presse-papiers refusé : colle avec un appui long dans la zone');
+  }
+});
+$('#d-paste-save').addEventListener('click', async () => {
+  const v = $('#d-paste-text').value.trim();
+  if (!v) { toast("Colle d'abord le texte du post"); return; }
+  await update({ caption: v, pending: null });
+  $('#d-title').value = current.title;
+  toast(plural(current.ings.length, 'ingrédient reconnu', 'ingrédients reconnus'));
+});
 $('#d-close').addEventListener('click', () => detail.close());
 $('#d-print').addEventListener('click', () => printRecipes([current], current.title));
 detail.addEventListener('close', () => {
@@ -422,7 +441,7 @@ function sheet(r) {
     el('div', { class: 'rs-head' },
       el('div', {},
         el('h1', {}, r.title),
-        el('p', { class: 'src' }, `@${r.raw.author} · `, el('a', { href: r.raw.url }, r.raw.url))),
+        el('p', { class: 'src' }, r.raw.author ? `@${r.raw.author} · ` : '', r.raw.url ? el('a', { href: r.raw.url }, r.raw.url) : '')),
       r.raw.thumb ? el('img', { src: r.raw.thumb, alt: '' }) : null));
   if (!custom && r.p.ingredientLines.length) {
     s.append(el('h2', {}, 'Ingrédients'), el('ul', {}, r.p.ingredientLines.map((l) => el('li', {}, l))));
@@ -485,7 +504,7 @@ async function importFile(file) {
       };
       if (p.thumb) fresh.thumb = p.thumb;
       const old = byCode.get(p.code);
-      if (old) { out.push({ ...old, ...fresh }); updated++; } else {
+      if (old) { const m = { ...old, ...fresh }; delete m.pending; out.push(m); updated++; } else {
         out.push({ ...fresh, savedAt: now - (p.savedIndex ?? k) }); added++;
       }
     }
@@ -581,6 +600,40 @@ document.addEventListener('click', (e) => {
   if (menu.open && !menu.contains(e.target)) menu.open = false;
 });
 
+/* ---------- Partage depuis Instagram (Web Share Target) ---------- */
+
+const IG_POST = /https?:\/\/(?:www\.)?instagram\.com\/(?:[\w.]+\/)?(p|reels?|tv)\/([\w-]+)/i;
+
+async function receiveShare(params) {
+  const [title, text, url] = ['share_title', 'share_text', 'share_url'].map((k) => params.get(k) || '');
+  const all = [title, text, url].join('\n');
+  const m = all.match(IG_POST);
+  const textOnly = text.replace(/https?:\/\/\S+/g, '').trim();
+  if (!m && textOnly.length < 40) { toast('Ce partage ne contient ni lien Instagram ni recette'); return; }
+
+  const code = m ? m[2] : 'texte-' + Date.now().toString(36);
+  const existing = recipes.find((r) => r.raw.code === code);
+  if (existing) { toast('Déjà dans tes recettes'); openDetail(existing); return; }
+
+  const caption = textOnly.length >= 40 ? textOnly : ''; // Instagram n'envoie que le lien
+  const raw = {
+    code,
+    url: m ? `https://www.instagram.com/${/^reel/i.test(m[1]) ? 'reel' : 'p'}/${code}/` : (all.match(/https?:\/\/\S+/) || [''])[0],
+    author: ((title + ' ' + text).match(/@([\w.]+)/) || [])[1] || '',
+    authorName: '',
+    caption,
+    savedAt: Date.now(),
+    shared: true,
+  };
+  if (!caption) raw.pending = true;
+  const r = await commit(raw);
+  navigator.storage?.persist?.();
+  render();
+  updateStorageInfo();
+  toast(caption ? 'Recette ajoutée' : "Ajoutée : colle le texte du post pour l'indexer");
+  openDetail(r);
+}
+
 async function init() {
   try { state.sort = localStorage.getItem('sort') || 'recent'; } catch {}
   $('#sort').value = state.sort;
@@ -588,6 +641,12 @@ async function init() {
   await load();
   fillDatalist();
   prepareBookmarklet();
+
+  const params = new URLSearchParams(location.search);
+  if (['share_title', 'share_text', 'share_url'].some((k) => params.has(k))) {
+    history.replaceState(null, '', location.pathname);
+    await receiveShare(params);
+  }
 }
 
 init();
