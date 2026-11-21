@@ -134,6 +134,21 @@ window.__RI = (() => {
       B.collections('null');
     }),
 
+    // Nom du compte connecté (pour ouvrir directement …/nom/saved/) ; '' si introuvable.
+    me: () => guard(async () => {
+      let user = '';
+      for (const path of ['accounts/current_user/?edit=true', `users/${cookie('ds_user_id')}/info/`]) {
+        try {
+          const d = await api(path);
+          user = (d.user && d.user.username) || '';
+          if (user) break;
+        } catch (e) {
+          if (e instanceof LoginError) throw e;
+        }
+      }
+      B.me(user);
+    }),
+
     // Un seul post (partagé depuis Instagram).
     post: (code) => guard(async () => {
       const data = await api(`media/${mediaId(code)}/info/`);

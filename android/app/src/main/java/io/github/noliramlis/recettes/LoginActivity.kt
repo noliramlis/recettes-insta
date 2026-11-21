@@ -13,6 +13,7 @@ import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -30,6 +31,7 @@ class LoginActivity : ComponentActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var web: WebView
     private val pick by lazy { intent.getBooleanExtra(EXTRA_PICK, false) }
+    private val user by lazy { intent.getStringExtra(EXTRA_USER).orEmpty() }
 
     private val check = object : Runnable {
         override fun run() {
@@ -53,8 +55,9 @@ class LoginActivity : ComponentActivity() {
         }
         val pad = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 14f, resources.displayMetrics).toInt()
         val info = TextView(this).apply {
-            text = if (pick) "Ouvre ta collection de recettes : touche ton profil, puis ☰ → Enregistrements → " +
-                "ta collection. L'appli la reconnaîtra toute seule."
+            text = if (pick && user.isNotEmpty()) "Touche ta collection de recettes : l'appli la reconnaîtra toute seule."
+            else if (pick) "Ouvre ta collection de recettes : ton profil → Enregistrements → ta collection. " +
+                "L'appli la reconnaîtra toute seule."
             else "Connecte-toi à Instagram (une seule fois) : l'appli pourra lire tes enregistrements " +
                 "et les posts que tu partages. Tes identifiants vont directement à Instagram."
             setTextColor(getColor(R.color.ink))
@@ -63,6 +66,24 @@ class LoginActivity : ComponentActivity() {
         }
         web = WebView(this)
         root.addView(info)
+        if (pick) {
+            // Secours : la présentation « ordinateur » d'Instagram (menu ☰ Plus → Enregistrements).
+            val desktop = Button(this).apply {
+                text = "Version ordinateur"
+                isAllCaps = false
+                setOnClickListener {
+                    isEnabled = false
+                    web.settings.userAgentString = DESKTOP_UA
+                    web.settings.useWideViewPort = true
+                    web.settings.loadWithOverviewMode = true
+                    web.settings.builtInZoomControls = true
+                    web.settings.displayZoomControls = false
+                    web.loadUrl(startUrl())
+                }
+            }
+            root.addView(desktop, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { marginStart = pad; bottomMargin = pad / 2 })
+        }
         root.addView(web, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
         setContentView(root)
 
@@ -95,11 +116,20 @@ class LoginActivity : ComponentActivity() {
             }
         }
         onBackPressedDispatcher.addCallback(this) { if (web.canGoBack()) web.goBack() else finish() }
-        web.loadUrl(if (pick) "https://www.instagram.com/" else "https://www.instagram.com/accounts/login/")
+        web.loadUrl(startUrl())
+    }
+
+    private fun startUrl() = when {
+        !pick -> "https://www.instagram.com/accounts/login/"
+        user.isNotEmpty() -> "https://www.instagram.com/${Uri.encode(user)}/saved/"
+        else -> "https://www.instagram.com/"
     }
 
     companion object {
         const val EXTRA_PICK = "pick"
+        const val EXTRA_USER = "user"
+        private const val DESKTOP_UA =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
         private val COLLECTION_URL = Regex("""instagram\.com/[\w.]+/saved/([^/?#]+)/?(\d*)""")
     }
 

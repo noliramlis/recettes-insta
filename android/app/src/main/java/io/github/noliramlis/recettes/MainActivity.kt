@@ -248,8 +248,19 @@ class MainActivity : ComponentActivity(), Instagram.Listener {
             .show()
     }
 
+    // On cherche d'abord le nom du compte pour ouvrir directement la page des enregistrements.
     private fun openCollectionPicker() {
-        pickCollection.launch(Intent(this, LoginActivity::class.java).putExtra(LoginActivity.EXTRA_PICK, true))
+        progress("Ouverture de tes enregistrements…")
+        igRun("__RI.me()")
+    }
+
+    override fun onMe(username: String) {
+        progress(null)
+        pickCollection.launch(
+            Intent(this, LoginActivity::class.java)
+                .putExtra(LoginActivity.EXTRA_PICK, true)
+                .putExtra(LoginActivity.EXTRA_USER, username),
+        )
     }
 
     private fun chooseCollection(id: String, name: String) {
