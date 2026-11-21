@@ -63,6 +63,12 @@ class MainActivity : ComponentActivity(), Instagram.Listener {
         if (r.resultCode == RESULT_OK) next?.invoke() else progress(null)
     }
 
+    private val pickCollection = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val id = r.data?.getStringExtra("id")
+        val name = r.data?.getStringExtra("name")
+        if (r.resultCode == RESULT_OK && id != null && name != null) chooseCollection(id, name) else progress(null)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -222,21 +228,33 @@ class MainActivity : ComponentActivity(), Instagram.Listener {
 
     override fun onCollections(json: String) {
         progress(null)
+        // Liste refusée par Instagram : on choisit la collection dans Instagram même.
+        if (json == "null") { openCollectionPicker(); return }
         val arr = JSONArray(json)
-        if (arr.length() == 0) { toast("Aucune collection trouvée dans tes enregistrements"); return }
         val cols = (0 until arr.length()).map { arr.getJSONObject(it) }
         val labels = cols.map { c ->
             c.getString("name") + (if (c.isNull("n")) "" else " (${c.getInt("n")})")
-        }.toTypedArray()
+        } + listOf("Tous mes enregistrements", "Autre : choisir dans Instagram…")
         AlertDialog.Builder(this)
             .setTitle("Quelle collection contient tes recettes ?")
-            .setItems(labels) { _, which ->
-                val c = cols[which]
-                prefs.edit().putString("colId", c.getString("id")).putString("colName", c.getString("name")).apply()
-                syncCollection(c.getString("id"), c.getString("name"))
+            .setItems(labels.toTypedArray()) { _, which ->
+                when {
+                    which < cols.size -> chooseCollection(cols[which].getString("id"), cols[which].getString("name"))
+                    which == cols.size -> chooseCollection("ALL", "Tous mes enregistrements")
+                    else -> openCollectionPicker()
+                }
             }
             .setNegativeButton("Annuler", null)
             .show()
+    }
+
+    private fun openCollectionPicker() {
+        pickCollection.launch(Intent(this, LoginActivity::class.java).putExtra(LoginActivity.EXTRA_PICK, true))
+    }
+
+    private fun chooseCollection(id: String, name: String) {
+        prefs.edit().putString("colId", id).putString("colName", name).apply()
+        syncCollection(id, name)
     }
 
     override fun onBatch(json: String) { web.evaluateJavascript("RecettesInsta.importPosts($json)", null) }

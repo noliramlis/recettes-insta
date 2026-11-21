@@ -1,7 +1,9 @@
 package io.github.noliramlis.recettes
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.res.Configuration
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -19,13 +21,19 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 
-/** Connexion à Instagram (une fois) : la page de connexion officielle, dans l'appli. */
+/**
+ * Connexion à Instagram (une fois) : la page de connexion officielle, dans l'appli.
+ * Avec [EXTRA_PICK] : Instagram s'ouvre et l'utilisateur va jusqu'à sa collection ; son adresse
+ * (…/saved/nom/12345/) donne le numéro de la collection, renvoyé à l'appli.
+ */
 class LoginActivity : ComponentActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var web: WebView
+    private val pick by lazy { intent.getBooleanExtra(EXTRA_PICK, false) }
 
     private val check = object : Runnable {
         override fun run() {
+            if (pick) return
             if (Instagram.loggedIn()) {
                 CookieManager.getInstance().flush()
                 setResult(RESULT_OK)
@@ -45,7 +53,9 @@ class LoginActivity : ComponentActivity() {
         }
         val pad = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 14f, resources.displayMetrics).toInt()
         val info = TextView(this).apply {
-            text = "Connecte-toi à Instagram (une seule fois) : l'appli pourra lire tes enregistrements " +
+            text = if (pick) "Ouvre ta collection de recettes : touche ton profil, puis ☰ → Enregistrements → " +
+                "ta collection. L'appli la reconnaîtra toute seule."
+            else "Connecte-toi à Instagram (une seule fois) : l'appli pourra lire tes enregistrements " +
                 "et les posts que tu partages. Tes identifiants vont directement à Instagram."
             setTextColor(getColor(R.color.ink))
             textSize = 14f
@@ -72,9 +82,25 @@ class LoginActivity : ComponentActivity() {
             // Reste dans la page : bloque les liens « Ouvrir l'appli Instagram » (intent://…).
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) =
                 request.url.scheme != "https" && request.url.scheme != "http"
+
+            // L'adresse change aussi sans rechargement (navigation interne d'Instagram).
+            override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+                if (!pick) return
+                val m = COLLECTION_URL.find(url) ?: return
+                val id = if (m.groupValues[1] == "all-posts") "ALL" else m.groupValues[2].ifEmpty { return }
+                val name = if (id == "ALL") "Tous mes enregistrements"
+                else Uri.decode(m.groupValues[1]).replace('-', ' ').replaceFirstChar { it.uppercase() }
+                setResult(RESULT_OK, Intent().putExtra("id", id).putExtra("name", name))
+                finish()
+            }
         }
         onBackPressedDispatcher.addCallback(this) { if (web.canGoBack()) web.goBack() else finish() }
-        web.loadUrl("https://www.instagram.com/accounts/login/")
+        web.loadUrl(if (pick) "https://www.instagram.com/" else "https://www.instagram.com/accounts/login/")
+    }
+
+    companion object {
+        const val EXTRA_PICK = "pick"
+        private val COLLECTION_URL = Regex("""instagram\.com/[\w.]+/saved/([^/?#]+)/?(\d*)""")
     }
 
     override fun onResume() { super.onResume(); handler.post(check) }

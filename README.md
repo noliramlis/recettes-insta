@@ -56,7 +56,7 @@ Construire l'APK (JDK 17 et SDK Android, `sdk.dir` dans `android/local.propertie
 
 ```
 cd android
-gradlew assembleRelease     # → app/build/outputs/apk/release/app-release.apk
+gradlew assembleRelease     # → app/build/outputs/apk/release/ (sous Windows : %LOCALAPPDATA%Androidbuildecettes-instappoutputspkelease)
 ```
 
 L'APK est signé avec la clé locale du PC (clé de debug) : les mises à jour doivent être construites

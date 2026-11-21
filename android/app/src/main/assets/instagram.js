@@ -108,13 +108,30 @@ window.__RI = (() => {
 
   return {
     // Liste des collections d'enregistrements.
+    // Plusieurs formes de l'appel sont essayées ; si aucune ne marche, l'appli renvoie « null »
+    // et fait choisir la collection dans Instagram même.
     collections: () => guard(async () => {
-      const data = await api('collections/list/?collection_types=' +
-        encodeURIComponent('["ALL_MEDIA_AUTO_COLLECTION","MEDIA"]'));
-      const cols = (data.items || []).map((c) => ({
-        id: String(c.collection_id), name: c.collection_name || 'Sans nom', n: c.collection_media_count ?? null,
-      }));
-      B.collections(JSON.stringify(cols));
+      const types = encodeURIComponent('["ALL_MEDIA_AUTO_COLLECTION","MEDIA","AUDIO_AUTO_COLLECTION"]');
+      const tries = [
+        `collections/list/?collection_types=${types}&include_public_only=0&get_cover_media_lists=true&max_id=`,
+        'collections/list/',
+        `collections/list/?collection_types=${encodeURIComponent('["MEDIA"]')}`,
+      ];
+      for (const path of tries) {
+        try {
+          const data = await api(path);
+          const cols = (data.items || [])
+            .filter((c) => c.collection_type !== 'ALL_MEDIA_AUTO_COLLECTION' && c.collection_type !== 'AUDIO_AUTO_COLLECTION')
+            .map((c) => ({
+              id: String(c.collection_id), name: c.collection_name || 'Sans nom', n: c.collection_media_count ?? null,
+            }));
+          B.collections(JSON.stringify(cols));
+          return;
+        } catch (e) {
+          if (e instanceof LoginError) throw e;
+        }
+      }
+      B.collections('null');
     }),
 
     // Un seul post (partagé depuis Instagram).
@@ -131,7 +148,7 @@ window.__RI = (() => {
     // plus rien de nouveau, le reste est déjà connu.
     collection: (id, name, known) => guard(async () => {
       const knownSet = new Set(known || []);
-      const base = /^\d+$/.test(id) ? `feed/collection/${id}/posts/` : 'feed/saved/posts/';
+      const base = /^\d+$/.test(id) ? `feed/collection/${id}/posts/` : 'feed/saved/posts/'; // 'ALL' : tous les enregistrements
       const now = Date.now();
       const fresh = [];
       const seen = new Set();
