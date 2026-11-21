@@ -10,6 +10,7 @@ const state = {
 };
 let shownList = []; // recettes affichées dans la liste
 let current = null; // fiche ouverte
+const ANDROID = !!window.RecettesAndroid; // interface embarquée dans l'appli Android
 
 /* ---------- Utilitaires ---------- */
 
@@ -56,7 +57,7 @@ function compute(raw) {
   const p = parse(raw.caption, raw.author);
   const removed = new Set(raw.ingRemoved || []);
   const ings = [...new Set([...p.ingredients.filter((i) => !removed.has(i)), ...(raw.ingAdded || [])])];
-  const title = raw.title || (!raw.caption && !raw.author ? 'Post partagé (à compléter)' : p.title);
+  const title = raw.title || (!raw.caption && !raw.author ? 'Post sans texte' : p.title);
   return {
     raw, p, title, ings,
     ingSet: new Set(ings),
@@ -330,7 +331,7 @@ function refreshDetail() {
   const { raw, p } = r;
   const pending = !raw.caption;
   const warn = pending
-    ? "Ajoutée depuis un partage : Instagram n'envoie que le lien, pas le texte. Complète-la pour indexer ses ingrédients."
+    ? "Le texte de ce post manque : colle-le ci-dessous pour indexer ses ingrédients."
     : !p.hasRecipe
       ? "Le texte de ce post ne contient pas vraiment de recette : elle est sans doute dans les images, la vidéo ou un commentaire. Ouvre le post dans Instagram."
       : p.source === 'texte' ? "Pas de liste d'ingrédients trouvée : ceux ci-dessous sont devinés à partir de tout le texte, vérifie-les."
@@ -338,15 +339,6 @@ function refreshDetail() {
   $('#d-warn').textContent = warn;
   $('#d-warn').hidden = !warn;
   $('#d-paste').hidden = !pending;
-  if (pending && raw.url) {
-    // Sur Android, forcer Chrome : un lien instagram.com ouvrirait l'appli Instagram.
-    const u = new URL(raw.url);
-    $('#d-complete').href = /Android/i.test(navigator.userAgent)
-      ? `intent://${u.host}${u.pathname}#Intent;scheme=https;package=com.android.chrome;end`
-      : raw.url;
-  }
-  $('#d-complete').hidden = !raw.url;
-  $('#d-open').classList.toggle('primary', !pending);
   $('#d-lines-wrap').hidden = !p.ingredientLines.length;
   $('#d-lines').replaceChildren(...p.ingredientLines.map((l) => el('li', {}, l)));
   $('#d-fav').textContent = r.raw.fav ? '★' : '☆';
@@ -423,13 +415,9 @@ $('#d-paste-clip').addEventListener('click', async () => {
 $('#d-paste-save').addEventListener('click', async () => {
   const v = $('#d-paste-text').value.trim();
   if (!v) { toast("Colle d'abord le texte du post"); return; }
-  await update({ caption: v, pending: null });
+  await update({ caption: v });
   $('#d-title').value = current.title;
   toast(plural(current.ings.length, 'ingrédient reconnu', 'ingrédients reconnus'));
-});
-$('#d-bm-help').addEventListener('click', () => {
-  help.showModal();
-  $('#h-phone').scrollIntoView();
 });
 $('#d-close').addEventListener('click', () => detail.close());
 $('#d-print').addEventListener('click', () => printRecipes([current], current.title));
@@ -488,8 +476,13 @@ async function importFile(file) {
   let data;
   try { data = JSON.parse(await file.text()); } catch { throw new Error('Fichier illisible'); }
   if (data.app !== 'recettes-insta') throw new Error('Ce fichier ne vient pas de Recettes Insta');
+  const { added, updated } = await importData(data);
+  toast(`${plural(added, 'nouvelle recette', 'nouvelles recettes')}` + (updated ? `, ${updated} mise(s) à jour` : ''));
+}
+
+async function importData(data) {
   const byCode = new Map(recipes.map((r) => [r.raw.code, r.raw]));
-  const now = Date.now();
+  const now = data.now || Date.now();
   const out = [];
   let added = 0;
   let updated = 0;
@@ -505,7 +498,7 @@ async function importFile(file) {
       if (!p.code) continue;
       const fresh = freshFromPost(p, data.collection?.name);
       const old = byCode.get(p.code);
-      if (old) { const m = { ...old, ...fresh }; delete m.pending; out.push(m); updated++; } else {
+      if (old) { out.push({ ...old, ...fresh }); updated++; } else {
         out.push({ ...fresh, savedAt: now - (p.savedIndex ?? k) }); added++;
       }
     }
@@ -514,10 +507,11 @@ async function importFile(file) {
   navigator.storage?.persist?.();
   await load();
   fillDatalist();
-  toast(`${plural(added, 'nouvelle recette', 'nouvelles recettes')}` + (updated ? `, ${updated} mise(s) à jour` : ''));
+  return { added, updated };
 }
 
 function downloadJSON(obj, filename) {
+  if (ANDROID) { window.RecettesAndroid.saveFile(filename, JSON.stringify(obj)); return; }
   const blob = new Blob([JSON.stringify(obj)], { type: 'application/json' });
   const a = el('a', { href: URL.createObjectURL(blob), download: filename });
   document.body.append(a);
@@ -560,22 +554,12 @@ $('#btn-help').addEventListener('click', openHelp);
 $('#btn-help-empty').addEventListener('click', openHelp);
 $('#h-close').addEventListener('click', () => help.close());
 // Le favori (« bookmarklet ») contient tout le script d'extraction.
-let bookmarkletUrl = '';
 async function prepareBookmarklet() {
   try {
-    const code = (await (await fetch('extraction.js', { cache: 'no-cache' })).text())
-      .replaceAll('__APP_URL__', new URL('./', location.href).href);
-    bookmarkletUrl = 'javascript:' + encodeURIComponent(code + '\nvoid 0;');
-    $('#h-bookmarklet').href = bookmarkletUrl;
+    const code = await (await fetch('extraction.js', { cache: 'no-cache' })).text();
+    $('#h-bookmarklet').href = 'javascript:' + encodeURIComponent(code + '\nvoid 0;');
   } catch {}
 }
-$('#h-copy-bm').addEventListener('click', async () => {
-  try {
-    if (!bookmarkletUrl) await prepareBookmarklet();
-    await navigator.clipboard.writeText(bookmarkletUrl);
-    toast('Favori copié : colle-le comme adresse du favori');
-  } catch { toast('Copie impossible'); }
-});
 $('#h-bookmarklet').addEventListener('click', (e) => {
   e.preventDefault();
   toast('Ne clique pas ici : fais glisser le bouton dans ta barre de favoris');
@@ -611,57 +595,18 @@ document.addEventListener('click', (e) => {
   if (menu.open && !menu.contains(e.target)) menu.open = false;
 });
 
-/* ---------- Partage depuis Instagram (Web Share Target) ---------- */
-
-const IG_POST = /https?:\/\/(?:www\.)?instagram\.com\/(?:[\w.]+\/)?(p|reels?|tv)\/([\w-]+)/i;
-
-async function receiveShare(params) {
-  const [title, text, url] = ['share_title', 'share_text', 'share_url'].map((k) => params.get(k) || '');
-  const all = [title, text, url].join('\n');
-  const m = all.match(IG_POST);
-  const textOnly = text.replace(/https?:\/\/\S+/g, '').trim();
-  if (!m && textOnly.length < 40) { toast('Ce partage ne contient ni lien Instagram ni recette'); return; }
-
-  const code = m ? m[2] : 'texte-' + Date.now().toString(36);
-  const existing = recipes.find((r) => r.raw.code === code);
-  if (existing) { toast('Déjà dans tes recettes'); openDetail(existing); return; }
-
-  const caption = textOnly.length >= 40 ? textOnly : ''; // Instagram n'envoie que le lien
-  const raw = {
-    code,
-    url: m ? `https://www.instagram.com/${/^reel/i.test(m[1]) ? 'reel' : 'p'}/${code}/` : (all.match(/https?:\/\/\S+/) || [''])[0],
-    author: ((title + ' ' + text).match(/@([\w.]+)/) || [])[1] || '',
-    authorName: '',
-    caption,
-    savedAt: Date.now(),
-    shared: true,
-  };
-  if (!caption) raw.pending = true;
-  const r = await commit(raw);
-  navigator.storage?.persist?.();
-  render();
-  updateStorageInfo();
-  toast(caption ? 'Recette ajoutée' : "Ajoutée : colle le texte du post pour l'indexer");
-  openDetail(r);
-}
+/* ---------- Démarrage ---------- */
 
 async function init() {
   try { state.sort = localStorage.getItem('sort') || 'recent'; } catch {}
   $('#sort').value = state.sort;
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  if (ANDROID) setupAndroid();
+  else if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
   await load();
   fillDatalist();
-  prepareBookmarklet();
-
-  const params = new URLSearchParams(location.search);
-  if (['share_title', 'share_text', 'share_url'].some((k) => params.has(k))) {
-    history.replaceState(null, '', location.pathname);
-    await receiveShare(params);
-  }
-  checkHashImport();
+  if (!ANDROID) prepareBookmarklet();
+  window.RecettesAndroid?.ready();
 }
-
-/* ---------- Post renvoyé par le favori (…/#import=…) ---------- */
 
 function freshFromPost(p, collection = '') {
   const fresh = {
@@ -678,24 +623,71 @@ function freshFromPost(p, collection = '') {
   return fresh;
 }
 
-async function checkHashImport() {
-  const m = location.hash.match(/^#import=(.+)$/s);
-  if (!m) return;
-  history.replaceState(null, '', location.pathname + location.search);
-  let p;
-  try { p = JSON.parse(decodeURIComponent(m[1])); } catch { toast('Données du post illisibles'); return; }
-  if (!p || !p.code) { toast('Données du post illisibles'); return; }
-  const old = recipes.find((r) => r.raw.code === p.code)?.raw;
-  const raw = old ? { ...old, ...freshFromPost(p) } : { ...freshFromPost(p), savedAt: Date.now(), shared: true };
-  delete raw.pending;
-  if (detail.open) detail.close();
-  const r = await commit(raw);
-  navigator.storage?.persist?.();
-  render();
-  updateStorageInfo();
-  toast(`${old ? 'Recette complétée' : 'Recette ajoutée'} : ${plural(r.ings.length, 'ingrédient reconnu', 'ingrédients reconnus')}`);
-  openDetail(r);
+/* ---------- Appli Android (l'interface web tourne dans l'APK) ---------- */
+
+function setupAndroid() {
+  document.documentElement.classList.add('android');
+  const A = window.RecettesAndroid;
+  // Pas de window.print() dans une WebView : l'appli imprime la page (styles @media print).
+  window.print = () => A.print(document.title);
+  $('#btn-sync').hidden = false;
+  $('#btn-ig-logout').hidden = false;
+  $('#btn-help').hidden = true;
+  $('#btn-sync').addEventListener('click', () => { $('.menu').open = false; A.sync(); });
+  $('#btn-ig-logout').addEventListener('click', () => {
+    $('.menu').open = false;
+    if (confirm("Se déconnecter d'Instagram dans cette appli ? (tes recettes restent)")) A.logout();
+  });
+  $('#btn-help-empty').textContent = 'Synchroniser avec Instagram';
+  $('#empty p:nth-of-type(2)').textContent =
+    "Connecte-toi à Instagram dans l'appli, choisis ta collection de recettes : ses posts sont importés automatiquement.";
+  $('#btn-help-empty').replaceWith($('#btn-help-empty').cloneNode(true)); // retire l'ouverture de l'aide
+  $('#btn-help-empty').addEventListener('click', () => A.sync());
 }
-window.addEventListener('hashchange', checkHashImport);
+
+// Appelé par l'appli Android.
+window.RecettesInsta = {
+  knownCodes: () => recipes.map((r) => r.raw.code),
+  progress(text) {
+    const p = $('#progress');
+    p.textContent = text || '';
+    p.hidden = !text;
+  },
+  toast,
+  // Lots de posts lus dans la collection { posts, collection, now }, importés l'un après l'autre.
+  queue: Promise.resolve(),
+  importPosts(data) {
+    this.queue = this.queue.then(() => importData({ kind: 'extraction', ...data })).catch(() => {});
+  },
+  syncDone(added) {
+    this.queue = this.queue.then(() => {
+      this.progress('');
+      toast(added ? `${plural(added, 'nouvelle recette ajoutée', 'nouvelles recettes ajoutées')}` : 'Rien de nouveau dans ta collection');
+    });
+  },
+  // Un post partagé depuis Instagram.
+  async importPost(p) {
+    this.progress('');
+    if (!p || !p.code) { toast('Post illisible'); return; }
+    const old = recipes.find((r) => r.raw.code === p.code)?.raw;
+    const raw = old ? { ...old, ...freshFromPost(p) } : { ...freshFromPost(p), savedAt: Date.now(), shared: true };
+    if (detail.open) detail.close();
+    const r = await commit(raw);
+    navigator.storage?.persist?.();
+    render();
+    updateStorageInfo();
+    fillDatalist();
+    toast(`${old ? 'Déjà dans tes recettes, mise à jour' : 'Recette ajoutée'} : ${plural(r.ings.length, 'ingrédient reconnu', 'ingrédients reconnus')}`);
+    openDetail(r);
+  },
+  // Bouton « retour » d'Android : true si l'interface l'a traité.
+  back() {
+    const menu = $('.menu');
+    if (menu.open) { menu.open = false; return true; }
+    for (const d of [help, detail]) if (d.open) { d.close(); return true; }
+    if (state.picked.size) { clearPicked(); return true; }
+    return false;
+  },
+};
 
 init();

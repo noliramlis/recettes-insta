@@ -1,5 +1,5 @@
 // Service worker : permet d'ouvrir l'appli hors-ligne.
-const CACHE = 'recettes-insta-v5';
+const CACHE = 'recettes-insta-v6';
 const ASSETS = [
   './',
   './index.html',

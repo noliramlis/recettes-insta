@@ -6,7 +6,8 @@ lien direct vers le post, et **export en PDF** d'une fiche recette propre.
 
 Tout reste sur ton appareil (stockage local du navigateur) : rien n'est envoyé à un serveur.
 
-En ligne : https://noliramlis.github.io/recettes-insta/
+En ligne : https://noliramlis.github.io/recettes-insta/ — existe aussi en **appli Android** (APK, dossier
+[`android/`](android/)) qui lit Instagram toute seule : voir plus bas.
 
 ## 1. Récupérer les posts (sur ordinateur, une fois)
 
@@ -26,12 +27,6 @@ quelque chose et il faudra l'adapter.
 
 ## 2. Utilisation
 
-- **Partager depuis Instagram** (appli installée sur Android) : *Partager → Recettes* ajoute le post.
-  Instagram ne transmet que le lien : la recette arrive « à compléter ». Dans sa fiche,
-  *Compléter automatiquement* ouvre le post dans Chrome ; tape « Recettes » dans la barre d'adresse et
-  choisis le favori 📥 : le texte, l'auteur et la miniature reviennent dans l'appli. (Le favori arrive sur le
-  téléphone par la synchro Chrome, ou via *Copier le favori* dans l'aide ; il faut être connecté à
-  instagram.com dans Chrome.) Le copier-coller du texte reste possible.
 - **Recettes** : recherche plein texte ; en tapant un ingrédient, une suggestion permet de filtrer dessus.
 - **Ingrédients** : index par catégorie avec le nombre de recettes ; en choisir plusieurs affine
   (les nombres se mettent à jour selon la sélection).
@@ -44,16 +39,40 @@ quelque chose et il faudra l'adapter.
 - Menu ⋮ → *Exporter en PDF les recettes affichées* : toute la liste filtrée en un PDF.
 - Menu ⋮ → *Sauvegarder* : fichier JSON avec tes modifications (réimportable sur un autre appareil).
 
+## 3. Appli Android (APK, hors store)
+
+Même interface (les fichiers du site sont copiés dans l'APK à chaque build), plus ce qu'un site ne peut pas faire :
+
+- **Connexion à Instagram dans l'appli** (une fois, page de connexion officielle).
+- Menu ⋮ → **Synchroniser avec Instagram** : choix de la collection (mémorisé), puis lecture dans un
+  navigateur caché, sans PC ni fichier. Les fois suivantes, seuls les nouveaux posts sont lus.
+- **Partager → Recettes Insta** depuis l'appli Instagram : le post est lu en arrière-plan et sa fiche s'ouvre.
+- PDF via l'impression Android, sauvegarde via le sélecteur de fichiers.
+
+Le navigateur caché ouvre `https://www.instagram.com/robots.txt` (page neutre, même origine que l'API web)
+et y exécute [`android/app/src/main/assets/instagram.js`](android/app/src/main/assets/instagram.js).
+
+Construire l'APK (JDK 17 et SDK Android, `sdk.dir` dans `android/local.properties`) :
+
+```
+cd android
+gradlew assembleRelease     # → app/build/outputs/apk/release/app-release.apk
+```
+
+L'APK est signé avec la clé locale du PC (clé de debug) : les mises à jour doivent être construites
+sur le même PC pour s'installer par-dessus.
+
 ## Structure
 
 | Fichier | Rôle |
 |---|---|
-| `extraction.js` | Script à coller dans la console d'Instagram |
+| `extraction.js` | Script du favori (ou de la console) sur instagram.com |
 | `ingredients.js` | Dictionnaire d'ingrédients (catégories, variantes, quelques noms anglais) |
 | `parser.js` | Analyse du texte : titre, liste d'ingrédients, préparation, ingrédients reconnus |
 | `app.js` | Interface : liste, index, fiche, PDF, import/sauvegarde |
 | `db.js` | Stockage IndexedDB |
 | `sw.js`, `manifest.webmanifest` | Installation et fonctionnement hors-ligne |
+| `android/` | Appli Android : WebView + navigateur Instagram caché + réception des partages |
 
 Un ingrédient manque ou est mal regroupé ? Ajoute une ligne ou une variante dans `ingredients.js` :
 l'analyse est refaite à chaque ouverture, toutes les recettes en profitent.
