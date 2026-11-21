@@ -31,7 +31,8 @@ class LoginActivity : ComponentActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var web: WebView
     private val pick by lazy { intent.getBooleanExtra(EXTRA_PICK, false) }
-    private val user by lazy { intent.getStringExtra(EXTRA_USER).orEmpty() }
+    private var user = ""
+    private var pickedUser = "" // nom du compte, déduit de l'adresse du profil
 
     private val check = object : Runnable {
         override fun run() {
@@ -47,6 +48,7 @@ class LoginActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        user = intent.getStringExtra(EXTRA_USER).orEmpty()
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         val root = LinearLayout(this).apply {
@@ -56,8 +58,8 @@ class LoginActivity : ComponentActivity() {
         val pad = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 14f, resources.displayMetrics).toInt()
         val info = TextView(this).apply {
             text = if (pick && user.isNotEmpty()) "Touche ta collection de recettes : l'appli la reconnaîtra toute seule."
-            else if (pick) "Ouvre ta collection de recettes : ton profil → Enregistrements → ta collection. " +
-                "L'appli la reconnaîtra toute seule."
+            else if (pick) "Touche ta photo de profil (en bas à droite) : tes enregistrements s'ouvriront. " +
+                "Touche ensuite ta collection de recettes."
             else "Connecte-toi à Instagram (une seule fois) : l'appli pourra lire tes enregistrements " +
                 "et les posts que tu partages. Tes identifiants vont directement à Instagram."
             setTextColor(getColor(R.color.ink))
@@ -107,11 +109,21 @@ class LoginActivity : ComponentActivity() {
             // L'adresse change aussi sans rechargement (navigation interne d'Instagram).
             override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
                 if (!pick) return
+                // Profil ouvert (…/nom/) : on enchaîne sur ses enregistrements.
+                PROFILE_URL.find(url)?.let { p ->
+                    val name = p.groupValues[1]
+                    if (name.lowercase() !in RESERVED && name != pickedUser) {
+                        pickedUser = name
+                        view.loadUrl("https://www.instagram.com/$name/saved/")
+                    }
+                    return
+                }
                 val m = COLLECTION_URL.find(url) ?: return
                 val id = if (m.groupValues[1] == "all-posts") "ALL" else m.groupValues[2].ifEmpty { return }
                 val name = if (id == "ALL") "Tous mes enregistrements"
                 else Uri.decode(m.groupValues[1]).replace('-', ' ').replaceFirstChar { it.uppercase() }
-                setResult(RESULT_OK, Intent().putExtra("id", id).putExtra("name", name))
+                val owner = Regex("""instagram\.com/([\w.]+)/saved""").find(url)?.groupValues?.get(1).orEmpty()
+                setResult(RESULT_OK, Intent().putExtra("id", id).putExtra("name", name).putExtra("user", owner))
                 finish()
             }
         }
@@ -130,6 +142,8 @@ class LoginActivity : ComponentActivity() {
         const val EXTRA_USER = "user"
         private const val DESKTOP_UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+        private val PROFILE_URL = Regex("""instagram\.com/([\w.]+)/?(?:[?#].*)?$""")
+        private val RESERVED = setOf("explore", "reels", "direct", "accounts", "stories", "p", "reel", "tv", "about", "legal", "web", "challenge")
         private val COLLECTION_URL = Regex("""instagram\.com/[\w.]+/saved/([^/?#]+)/?(\d*)""")
     }
 

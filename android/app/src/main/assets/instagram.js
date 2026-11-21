@@ -13,8 +13,9 @@ window.__RI = (() => {
 
   class LoginError extends Error {}
 
+  // Aucun nouvel essai automatique quand Instagram demande de ralentir : on s'arrête tout de suite.
   async function api(path) {
-    for (let attempt = 1; attempt <= 4; attempt++) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
       const res = await fetch('/api/v1/' + path, {
         credentials: 'include',
         headers: {
@@ -23,12 +24,11 @@ window.__RI = (() => {
           'X-CSRFToken': cookie('csrftoken'),
         },
       });
-      if (res.status === 429 || res.status >= 500) {
-        const s = 30 * attempt;
-        B.progress(`Instagram demande de ralentir… pause de ${s} s`);
-        await sleep(s * 1000);
-        continue;
+      if (res.status === 429) {
+        throw new Error("Instagram demande de ralentir : synchro arrêtée. Ce qui a été lu est gardé ; " +
+          'relance dans quelques heures, elle reprendra où elle en était.');
       }
+      if (res.status >= 500 && attempt === 1) { await sleep(15000); continue; }
       if (res.status === 401 || res.status === 403 || /\/accounts\/login/.test(res.url)) throw new LoginError('login');
       if (!res.ok) throw new Error(`Réponse inattendue d'Instagram (HTTP ${res.status}).`);
       let data;
@@ -36,7 +36,7 @@ window.__RI = (() => {
       if (data.message === 'login_required' || data.require_login) throw new LoginError('login');
       return data;
     }
-    throw new Error('Instagram limite les requêtes : réessaie dans une heure.');
+    throw new Error('Instagram ne répond pas correctement : réessaie plus tard.');
   }
 
   function pick(m, i) {
@@ -107,48 +107,6 @@ window.__RI = (() => {
   }
 
   return {
-    // Liste des collections d'enregistrements.
-    // Plusieurs formes de l'appel sont essayées ; si aucune ne marche, l'appli renvoie « null »
-    // et fait choisir la collection dans Instagram même.
-    collections: () => guard(async () => {
-      const types = encodeURIComponent('["ALL_MEDIA_AUTO_COLLECTION","MEDIA","AUDIO_AUTO_COLLECTION"]');
-      const tries = [
-        `collections/list/?collection_types=${types}&include_public_only=0&get_cover_media_lists=true&max_id=`,
-        'collections/list/',
-        `collections/list/?collection_types=${encodeURIComponent('["MEDIA"]')}`,
-      ];
-      for (const path of tries) {
-        try {
-          const data = await api(path);
-          const cols = (data.items || [])
-            .filter((c) => c.collection_type !== 'ALL_MEDIA_AUTO_COLLECTION' && c.collection_type !== 'AUDIO_AUTO_COLLECTION')
-            .map((c) => ({
-              id: String(c.collection_id), name: c.collection_name || 'Sans nom', n: c.collection_media_count ?? null,
-            }));
-          B.collections(JSON.stringify(cols));
-          return;
-        } catch (e) {
-          if (e instanceof LoginError) throw e;
-        }
-      }
-      B.collections('null');
-    }),
-
-    // Nom du compte connecté (pour ouvrir directement …/nom/saved/) ; '' si introuvable.
-    me: () => guard(async () => {
-      let user = '';
-      for (const path of ['accounts/current_user/?edit=true', `users/${cookie('ds_user_id')}/info/`]) {
-        try {
-          const d = await api(path);
-          user = (d.user && d.user.username) || '';
-          if (user) break;
-        } catch (e) {
-          if (e instanceof LoginError) throw e;
-        }
-      }
-      B.me(user);
-    }),
-
     // Un seul post (partagé depuis Instagram).
     post: (code) => guard(async () => {
       const data = await api(`media/${mediaId(code)}/info/`);
@@ -159,39 +117,62 @@ window.__RI = (() => {
     }),
 
     // Les posts d'une collection absents de l'appli (known = codes déjà importés).
-    // La collection est lue des plus récents aux plus anciens : dès qu'une page ne contient
-    // plus rien de nouveau, le reste est déjà connu.
-    collection: (id, name, known) => guard(async () => {
+    // Chaque page lue est importée aussitôt. Après chaque page, B.cursor() donne de quoi
+    // reprendre si la lecture est interrompue ('' = rien à reprendre) ; l'appli le repasse
+    // dans resume à la synchro suivante.
+    collection: (id, name, known, resume) => guard(async () => {
       const knownSet = new Set(known || []);
+      const full = !knownSet.size; // première synchro : lecture complète
       const base = /^\d+$/.test(id) ? `feed/collection/${id}/posts/` : 'feed/saved/posts/'; // 'ALL' : tous les enregistrements
-      const now = Date.now();
-      const fresh = [];
-      const seen = new Set();
-      let maxId = '';
       let read = 0;
-      do {
+      let total = 0;
+      let added = 0;
+
+      async function page(maxId, now) {
         const data = await api(base + (maxId ? '?max_id=' + encodeURIComponent(maxId) : ''));
-        let newOnPage = 0;
+        const fresh = [];
         for (const it of data.items || []) {
           const m = it.media || it;
-          if (!m || !m.code || seen.has(m.code)) continue;
-          seen.add(m.code);
+          if (!m || !m.code) continue;
           read++;
-          if (!knownSet.has(m.code)) { fresh.push(pick(m, read - 1)); newOnPage++; }
+          total++;
+          if (!knownSet.has(m.code)) { knownSet.add(m.code); fresh.push(pick(m, read - 1)); }
         }
-        B.progress(`« ${name} » : ${read} posts lus, ${fresh.length} nouveaux…`);
-        maxId = data.more_available ? data.next_max_id : '';
-        if (knownSet.size && !newOnPage) break;
-        if (maxId) await wait(2000, 4500);
-      } while (maxId);
-
-      // Miniatures puis import, par lots de 25 (l'appli enregistre au fur et à mesure).
-      for (let i = 0; i < fresh.length; i += 25) {
-        B.progress(`Import : ${i} / ${fresh.length}…`);
-        const batch = await withThumbs(fresh.slice(i, i + 25));
-        B.batch(JSON.stringify({ posts: batch, collection: { id, name }, now }));
+        if (fresh.length) {
+          await withThumbs(fresh);
+          B.batch(JSON.stringify({ posts: fresh, collection: { id, name }, now }));
+          added += fresh.length;
+        }
+        B.progress(`« ${name} » : ${total} posts lus, ${added} ajoutés…`);
+        return { next: data.more_available ? data.next_max_id : '', fresh: fresh.length };
       }
-      B.done(fresh.length);
+
+      // 1) Reprise d'une lecture interrompue.
+      if (resume) {
+        let st = resume;
+        read = st.index;
+        let cur = st.cur;
+        while (cur) {
+          await wait(3000, 6000);
+          const r = await page(cur, st.now);
+          cur = r.next && (st.full || r.fresh) ? r.next : '';
+          st = { ...st, cur, index: read };
+          B.cursor(cur ? JSON.stringify(st) : '');
+        }
+      }
+
+      // 2) Nouveautés, en partant des plus récents : on s'arrête à la première page
+      //    sans rien de nouveau (sauf première synchro, lue en entier).
+      const now = Date.now();
+      read = 0;
+      let cur = '';
+      do {
+        if (cur) await wait(3000, 6000);
+        const r = await page(cur, now);
+        cur = r.next && (full || r.fresh) ? r.next : '';
+        B.cursor(cur ? JSON.stringify({ cur, index: read, now, full }) : '');
+      } while (cur);
+      B.done(added);
     }),
   };
 })();

@@ -21,11 +21,11 @@ class Instagram(private val activity: Activity, parent: ViewGroup, private val l
 
     interface Listener {
         fun onProgress(text: String)
-        fun onCollections(json: String)
         fun onBatch(json: String)
         fun onDone(added: Int)
         fun onPost(json: String)
-        fun onMe(username: String)
+        /** Point de reprise de la synchro ('' = terminé). */
+        fun onCursor(json: String)
         /** [command] : la commande qui a échoué, pour la relancer après connexion. */
         fun onError(message: String, needsLogin: Boolean, command: String)
     }
@@ -86,11 +86,10 @@ class Instagram(private val activity: Activity, parent: ViewGroup, private val l
         }
 
         @JavascriptInterface fun progress(text: String) = ui { listener.onProgress(text) }
-        @JavascriptInterface fun collections(json: String) = ui(true) { listener.onCollections(json) }
         @JavascriptInterface fun batch(json: String) = ui { listener.onBatch(json) }
         @JavascriptInterface fun done(added: Int) = ui(true) { listener.onDone(added) }
         @JavascriptInterface fun post(json: String) = ui(true) { listener.onPost(json) }
-        @JavascriptInterface fun me(username: String) = ui(true) { listener.onMe(username) }
+        @JavascriptInterface fun cursor(json: String) = ui { listener.onCursor(json) }
         @JavascriptInterface fun error(message: String) {
             activity.runOnUiThread {
                 val c = command ?: ""

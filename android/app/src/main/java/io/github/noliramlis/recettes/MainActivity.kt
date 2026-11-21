@@ -1,7 +1,6 @@
 package io.github.noliramlis.recettes
 
 import android.annotation.SuppressLint
-import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.res.Configuration
@@ -26,7 +25,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.WebViewAssetLoader
-import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -64,9 +62,14 @@ class MainActivity : ComponentActivity(), Instagram.Listener {
     }
 
     private val pickCollection = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        val id = r.data?.getStringExtra("id")
-        val name = r.data?.getStringExtra("name")
-        if (r.resultCode == RESULT_OK && id != null && name != null) chooseCollection(id, name) else progress(null)
+        val d = r.data
+        d?.getStringExtra("user")?.takeIf { it.isNotEmpty() }?.let { prefs.edit().putString("igUser", it).apply() }
+        val id = d?.getStringExtra("id")
+        val name = d?.getStringExtra("name")
+        if (r.resultCode == RESULT_OK && id != null && name != null) {
+            prefs.edit().putString("colId", id).putString("colName", name).apply()
+            syncCollection(id, name)
+        } else progress(null)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -170,7 +173,7 @@ class MainActivity : ComponentActivity(), Instagram.Listener {
         @JavascriptInterface fun sync() = runOnUiThread { startSync() }
 
         @JavascriptInterface fun logout() = runOnUiThread {
-            prefs.edit().remove("colId").remove("colName").apply()
+            prefs.edit().clear().apply()
             ig.logout { toast("Déconnecté d'Instagram") }
         }
     }
@@ -200,14 +203,24 @@ class MainActivity : ComponentActivity(), Instagram.Listener {
         if (ig.busy) { toast("Synchronisation déjà en cours"); return }
         val id = prefs.getString("colId", null)
         val name = prefs.getString("colName", null)
-        if (id != null && name != null) syncCollection(id, name)
-        else { progress("Recherche de tes collections…"); igRun("__RI.collections()") }
+        if (id != null && name != null) syncCollection(id, name) else openCollectionPicker()
+    }
+
+    // Choix de la collection en naviguant dans Instagram (aucune requête à l'API pour ça).
+    private fun openCollectionPicker() {
+        if (!Instagram.loggedIn()) { askLogin { openCollectionPicker() }; return }
+        pickCollection.launch(
+            Intent(this, LoginActivity::class.java)
+                .putExtra(LoginActivity.EXTRA_PICK, true)
+                .putExtra(LoginActivity.EXTRA_USER, prefs.getString("igUser", "")),
+        )
     }
 
     private fun syncCollection(id: String, name: String) {
         progress("Synchronisation de « $name »…")
+        val resume = prefs.getString("resume_$id", null)?.takeIf { it.startsWith("{") } ?: "null"
         web.evaluateJavascript("RecettesInsta.knownCodes()") { known ->
-            igRun("__RI.collection(${q(id)}, ${q(name)}, ${known?.takeIf { it.startsWith("[") } ?: "[]"})")
+            igRun("__RI.collection(${q(id)}, ${q(name)}, ${known?.takeIf { it.startsWith("[") } ?: "[]"}, $resume)")
         }
     }
 
@@ -226,46 +239,9 @@ class MainActivity : ComponentActivity(), Instagram.Listener {
 
     override fun onProgress(text: String) = progress(text)
 
-    override fun onCollections(json: String) {
-        progress(null)
-        // Liste refusée par Instagram : on choisit la collection dans Instagram même.
-        if (json == "null") { openCollectionPicker(); return }
-        val arr = JSONArray(json)
-        val cols = (0 until arr.length()).map { arr.getJSONObject(it) }
-        val labels = cols.map { c ->
-            c.getString("name") + (if (c.isNull("n")) "" else " (${c.getInt("n")})")
-        } + listOf("Tous mes enregistrements", "Autre : choisir dans Instagram…")
-        AlertDialog.Builder(this)
-            .setTitle("Quelle collection contient tes recettes ?")
-            .setItems(labels.toTypedArray()) { _, which ->
-                when {
-                    which < cols.size -> chooseCollection(cols[which].getString("id"), cols[which].getString("name"))
-                    which == cols.size -> chooseCollection("ALL", "Tous mes enregistrements")
-                    else -> openCollectionPicker()
-                }
-            }
-            .setNegativeButton("Annuler", null)
-            .show()
-    }
-
-    // On cherche d'abord le nom du compte pour ouvrir directement la page des enregistrements.
-    private fun openCollectionPicker() {
-        progress("Ouverture de tes enregistrements…")
-        igRun("__RI.me()")
-    }
-
-    override fun onMe(username: String) {
-        progress(null)
-        pickCollection.launch(
-            Intent(this, LoginActivity::class.java)
-                .putExtra(LoginActivity.EXTRA_PICK, true)
-                .putExtra(LoginActivity.EXTRA_USER, username),
-        )
-    }
-
-    private fun chooseCollection(id: String, name: String) {
-        prefs.edit().putString("colId", id).putString("colName", name).apply()
-        syncCollection(id, name)
+    override fun onCursor(json: String) {
+        val id = prefs.getString("colId", null) ?: return
+        prefs.edit().apply { if (json.isEmpty()) remove("resume_$id") else putString("resume_$id", json) }.apply()
     }
 
     override fun onBatch(json: String) { web.evaluateJavascript("RecettesInsta.importPosts($json)", null) }
